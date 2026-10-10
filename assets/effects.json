@@ -1,0 +1,2002 @@
+{
+ "lib": "\n#define PI 3.14159265359\n#define TAU 6.28318530718\nfloat hash11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }\nfloat hash21(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\nvec2 hash22(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.xx + p3.yz) * p3.zy); }\nfloat noise(vec2 p) {\n  vec2 i = floor(p), f = fract(p);\n  vec2 u = f * f * (3.0 - 2.0 * f);\n  return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), u.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x), u.y);\n}\nfloat fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.02 + 17.0; a *= 0.5; } return v; }\nvec3 hsv2rgb(vec3 c) { vec3 p = abs(fract(c.xxx + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }\nmat2 rot(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }\n// Position entlang des Umfangs (0…1, im Uhrzeigersinn ab oben links) und Abstand zum Rand\n// – beides in Einheiten der Flächenhöhe, damit Linien überall gleich dick sind.\nvec2 perimeter(vec2 uv) {\n  float A = uAspect;\n  float dT = uv.y, dR = (1.0 - uv.x) * A, dB = 1.0 - uv.y, dL = uv.x * A;\n  float d = min(min(dT, dR), min(dB, dL));\n  float s;\n  if (d == dT) s = uv.x * A;\n  else if (d == dR) s = A + uv.y;\n  else if (d == dB) s = A + 1.0 + (1.0 - uv.x) * A;\n  else s = 2.0 * A + 1.0 + (1.0 - uv.y);\n  return vec2(s / (2.0 * A + 2.0), d);\n}\n// Bildpunkt mit gleichem Maßstab in x und y (Höhe = 1)\nvec2 aspectUv(vec2 uv) { return vec2(uv.x * uAspect, uv.y); }\n// Musik: 64 Frequenzbänder (x = 0 tief … 1 hoch), fallende Spitzen und Wellenform (−1…1)\nfloat spectrum(float x) { return texture(uAudioTex, vec2((clamp(x, 0.0, 1.0) * 63.0 + 0.5) / 128.0, 0.5 / 3.0)).r; }\nfloat peakAt(float x) { return texture(uAudioTex, vec2((clamp(x, 0.0, 1.0) * 63.0 + 0.5) / 128.0, 1.5 / 3.0)).r; }\nfloat waveAt(float x) { return texture(uAudioTex, vec2((clamp(x, 0.0, 1.0) * 127.0 + 0.5) / 128.0, 2.5 / 3.0)).r * 2.0 - 1.0; }\n",
+ "categories": [
+  "Musik",
+  "Licht",
+  "Disco & Party",
+  "Kontur",
+  "Natur",
+  "Muster",
+  "Farbe",
+  "Digital",
+  "Architektur"
+ ],
+ "effects": [
+  {
+   "id": "spectrum",
+   "name": "Spektrum-Analyzer",
+   "category": "Musik",
+   "icon": "📶",
+   "audio": true,
+   "description": "Der klassische Winamp-Analyzer: Frequenzbalken mit fallenden Spitzen.",
+   "params": [
+    {
+     "id": "bars",
+     "label": "Balken",
+     "type": "float",
+     "min": 8,
+     "max": 64,
+     "step": 1,
+     "default": 32
+    },
+    {
+     "id": "gap",
+     "label": "Abstand",
+     "type": "float",
+     "min": 0,
+     "max": 0.7,
+     "step": 0.01,
+     "default": 0.2
+    },
+    {
+     "id": "style",
+     "label": "Farben",
+     "type": "select",
+     "options": [
+      "Winamp",
+      "Regenbogen",
+      "Einfarbig"
+     ],
+     "default": 0
+    },
+    {
+     "id": "peaks",
+     "label": "Spitzen",
+     "type": "select",
+     "options": [
+      "an",
+      "aus"
+     ],
+     "default": 0
+    },
+    {
+     "id": "layout",
+     "label": "Anordnung",
+     "type": "select",
+     "options": [
+      "unten",
+      "gespiegelt",
+      "oben"
+     ],
+     "default": 0
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#22d3ee"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float x = uv.x * p_bars;\n  float id = floor(x), fx = fract(x);\n  float inBar = step(p_gap * 0.5, fx) * step(fx, 1.0 - p_gap * 0.5);\n  float xs = (id + 0.5) / p_bars;\n  float v = spectrum(xs), pk = peakAt(xs);\n  float y = 1.0 - uv.y;\n  if (p_layout > 1.5) y = uv.y;\n  else if (p_layout > 0.5) y = abs(uv.y - 0.5) * 2.0;\n  float bar = step(y, v) * inBar;\n  if (p_style < 0.5) bar *= step(0.22, fract(y * 28.0)); // LED-Segmente\n  float cap = inBar * step(abs(y - pk - 0.012), 0.008) * step(p_peaks, 0.5) * step(0.02, pk);\n  vec3 c;\n  if (p_style < 0.5) c = mix(vec3(0.15, 0.85, 0.1), mix(vec3(0.95, 0.85, 0.1), vec3(0.95, 0.15, 0.1), smoothstep(0.65, 0.95, y)), smoothstep(0.3, 0.7, y));\n  else if (p_style < 1.5) c = hsv2rgb(vec3(xs * 0.85 + uTime * 0.05, 0.9, 1.0));\n  else c = p_color;\n  return vec4(mix(c, vec3(1.0), cap), max(bar, cap));\n}"
+  },
+  {
+   "id": "scope",
+   "name": "Oszilloskop",
+   "category": "Musik",
+   "icon": "〽",
+   "audio": true,
+   "description": "Die Wellenform der Musik als leuchtende Linie – gerade, gespiegelt oder als Kreis.",
+   "params": [
+    {
+     "id": "mode",
+     "label": "Form",
+     "type": "select",
+     "options": [
+      "Linie",
+      "Doppelt",
+      "Kreis"
+     ],
+     "default": 0
+    },
+    {
+     "id": "amp",
+     "label": "Ausschlag",
+     "type": "float",
+     "min": 0.2,
+     "max": 3,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "width",
+     "label": "Linienbreite",
+     "type": "float",
+     "min": 0.002,
+     "max": 0.05,
+     "step": 0.001,
+     "default": 0.008
+    },
+    {
+     "id": "glow",
+     "label": "Leuchten",
+     "type": "float",
+     "min": 0,
+     "max": 0.15,
+     "step": 0.001,
+     "default": 0.04
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#4ade80"
+    },
+    {
+     "id": "rainbow",
+     "label": "Bunt",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float d;\n  float hueX = uv.x;\n  if (p_mode > 1.5) {\n    vec2 c = aspectUv(uv) - vec2(uAspect * 0.5, 0.5);\n    float a = atan(c.y, c.x) / TAU + 0.5;\n    float r = 0.28 + waveAt(a) * 0.12 * p_amp + uAudio.y * 0.04;\n    d = abs(length(c) - r);\n    hueX = a;\n  } else {\n    float w = waveAt(uv.x) * 0.35 * p_amp;\n    d = abs(uv.y - (0.5 - w));\n    if (p_mode > 0.5) d = min(abs(uv.y - (0.3 - w * 0.6)), abs(uv.y - (0.7 + w * 0.6)));\n  }\n  float core = 1.0 - smoothstep(p_width * 0.5, p_width, d);\n  float halo = exp(-max(d - p_width, 0.0) / max(p_glow, 1e-3) * 2.5) * step(1e-4, p_glow) * 0.7;\n  vec3 c = mix(p_color, hsv2rgb(vec3(hueX + uTime * 0.1, 0.85, 1.0)), p_rainbow);\n  return vec4(mix(c, vec3(1.0), core * 0.4), clamp(core + halo, 0.0, 1.0) * (0.5 + 0.5 * uAudio.x + 0.3));\n}"
+  },
+  {
+   "id": "radial",
+   "name": "Kreis-Spektrum",
+   "category": "Musik",
+   "icon": "🌀",
+   "audio": true,
+   "description": "Frequenzbalken strahlen kreisförmig aus einer pulsierenden Mitte.",
+   "params": [
+    {
+     "id": "bars",
+     "label": "Balken",
+     "type": "float",
+     "min": 16,
+     "max": 128,
+     "step": 1,
+     "default": 72
+    },
+    {
+     "id": "inner",
+     "label": "Innenradius",
+     "type": "float",
+     "min": 0.05,
+     "max": 0.4,
+     "step": 0.01,
+     "default": 0.17
+    },
+    {
+     "id": "length",
+     "label": "Länge",
+     "type": "float",
+     "min": 0.05,
+     "max": 0.6,
+     "step": 0.01,
+     "default": 0.28
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 2,
+     "step": 0.01,
+     "default": 0.3
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#a78bfa"
+    },
+    {
+     "id": "rainbow",
+     "label": "Bunt",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.8
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) - vec2(uAspect * 0.5, 0.5);\n  float r = length(p);\n  float a = fract(atan(p.y, p.x) / TAU + 0.5 + uTime * p_speed * 0.05);\n  float id = floor(a * p_bars);\n  float xs = abs((id + 0.5) / p_bars * 2.0 - 1.0);\n  float v = spectrum(xs);\n  float inner = p_inner * (1.0 + uAudio.y * 0.25);\n  float bar = step(inner, r) * step(r, inner + 0.005 + v * p_length) * step(0.2, fract(a * p_bars));\n  float ring = smoothstep(0.006, 0.0, abs(r - inner));\n  float core = smoothstep(inner, inner * 0.2, r) * uBeat * 0.7;\n  vec3 c = mix(p_color, hsv2rgb(vec3(xs * 0.7 + uTime * 0.05, 0.85, 1.0)), p_rainbow);\n  return vec4(c, clamp(bar + ring + core, 0.0, 1.0));\n}"
+  },
+  {
+   "id": "milktunnel",
+   "name": "Milkdrop: Wellentunnel",
+   "category": "Musik",
+   "icon": "🌌",
+   "audio": true,
+   "feedback": true,
+   "description": "Die Wellenform zieht farbige Schlieren in einen drehenden Tunnel – wie in Winamps Milkdrop.",
+   "params": [
+    {
+     "id": "zoom",
+     "label": "Sog",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "spin",
+     "label": "Drehung",
+     "type": "float",
+     "min": -1,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.3
+    },
+    {
+     "id": "decay",
+     "label": "Nachleuchten",
+     "type": "float",
+     "min": 0.8,
+     "max": 0.995,
+     "step": 0.001,
+     "default": 0.96
+    },
+    {
+     "id": "amp",
+     "label": "Ausschlag",
+     "type": "float",
+     "min": 0.2,
+     "max": 3,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "react",
+     "label": "Reaktion",
+     "type": "float",
+     "min": 0,
+     "max": 2,
+     "step": 0.01,
+     "default": 1
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 c = uv - 0.5;\n  c.x *= uAspect;\n  float zoom = 1.0 - 0.04 * p_zoom - uAudio.y * 0.035 * p_react;\n  float ang = 0.012 * p_spin + uAudio.z * 0.02 * p_react * sign(p_spin + 1e-4);\n  vec2 q = rot(ang) * c * zoom;\n  q.x /= uAspect;\n  vec3 col = prev(q + 0.5).rgb * p_decay;\n  float y = 0.5 + waveAt(uv.x) * 0.22 * p_amp;\n  float line = smoothstep(0.01, 0.0, abs(uv.y - y));\n  vec3 wc = hsv2rgb(vec3(uTime * 0.07 + uv.x * 0.4, 0.8, 1.0));\n  col = max(col - 0.003, 0.0) + wc * line * (0.5 + uAudio.x + uBeat * 0.5);\n  return vec4(col, 1.0);\n}"
+  },
+  {
+   "id": "milkswirl",
+   "name": "Milkdrop: Farbwirbel",
+   "category": "Musik",
+   "icon": "🍥",
+   "audio": true,
+   "feedback": true,
+   "description": "Wirbelnde Farbströme, die bei jedem Bass-Schlag neue Farbe bekommen.",
+   "params": [
+    {
+     "id": "swirl",
+     "label": "Wirbel",
+     "type": "float",
+     "min": -2,
+     "max": 2,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "warp",
+     "label": "Verwirbelung",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "decay",
+     "label": "Nachleuchten",
+     "type": "float",
+     "min": 0.8,
+     "max": 0.995,
+     "step": 0.001,
+     "default": 0.975
+    },
+    {
+     "id": "react",
+     "label": "Reaktion",
+     "type": "float",
+     "min": 0,
+     "max": 2,
+     "step": 0.01,
+     "default": 1
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 c = uv - 0.5;\n  c.x *= uAspect;\n  float r = length(c);\n  float a = 0.03 * p_swirl * (1.0 - min(r, 1.0)) + uAudio.y * 0.02 * p_react;\n  vec2 q = rot(a) * c * (0.988 - uBeat * 0.025 * p_react);\n  q.x /= uAspect;\n  q += (vec2(noise(uv * 4.0 + uTime * 0.3), noise(uv * 4.0 - uTime * 0.3 + 7.0)) - 0.5) * 0.006 * p_warp;\n  vec3 col = prev(q + 0.5).rgb * p_decay;\n  vec2 src = 0.18 * vec2(sin(uTime * 0.7), cos(uTime * 0.9)) * vec2(uAspect, 1.0);\n  float blob = smoothstep(0.06 + uAudio.y * 0.1, 0.0, length(c - src));\n  col += hsv2rgb(vec3(uTime * 0.05 + uBeatCount * 0.08, 0.9, 1.0)) * blob * (0.25 + uBeat * p_react);\n  return vec4(max(col - 0.002, 0.0), 1.0);\n}"
+  },
+  {
+   "id": "beatrings",
+   "name": "Beat-Ringe",
+   "category": "Musik",
+   "icon": "⭕",
+   "audio": true,
+   "feedback": true,
+   "description": "Jeder Beat schickt einen farbigen Ring nach außen.",
+   "params": [
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "decay",
+     "label": "Nachleuchten",
+     "type": "float",
+     "min": 0.8,
+     "max": 0.99,
+     "step": 0.001,
+     "default": 0.95
+    },
+    {
+     "id": "width",
+     "label": "Ringbreite",
+     "type": "float",
+     "min": 0.003,
+     "max": 0.05,
+     "step": 0.001,
+     "default": 0.012
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 c = uv - 0.5;\n  c.x *= uAspect;\n  vec2 q = c * (1.0 - 0.02 * p_speed);\n  q.x /= uAspect;\n  vec3 col = prev(q + 0.5).rgb * p_decay;\n  float r = length(c);\n  float ring = smoothstep(p_width, 0.0, abs(r - 0.06)) * smoothstep(0.35, 0.9, uBeat);\n  col += hsv2rgb(vec3(uBeatCount * 0.13, 0.85, 1.0)) * ring * 1.5;\n  col += hsv2rgb(vec3(uBeatCount * 0.13 + 0.5, 0.6, 1.0)) * smoothstep(0.05, 0.0, r) * uAudio.y * 0.4;\n  return vec4(max(col - 0.002, 0.0), 1.0);\n}"
+  },
+  {
+   "id": "waterfall",
+   "name": "Spektrum-Wasserfall",
+   "category": "Musik",
+   "icon": "🎚",
+   "audio": true,
+   "feedback": true,
+   "description": "Das Spektrum läuft als leuchtende Landschaft nach unten.",
+   "params": [
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "palette",
+     "label": "Farben",
+     "type": "select",
+     "options": [
+      "Glut",
+      "Eis",
+      "Regenbogen"
+     ],
+     "default": 0
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float rowH = 0.004 * max(p_speed, 0.05);\n  if (uv.y > rowH) return vec4(prev(uv - vec2(0.0, rowH)).rgb * 0.995, 1.0);\n  float v = spectrum(uv.x);\n  vec3 c;\n  if (p_palette < 0.5) c = vec3(v * 1.5, v * v * 1.2, v * v * v * 0.8);\n  else if (p_palette < 1.5) c = vec3(v * v * 0.6, v * 1.1, v * 1.6);\n  else c = hsv2rgb(vec3(0.7 - v * 0.7, 0.9, v * 1.3));\n  return vec4(c, 1.0);\n}"
+  },
+  {
+   "id": "laser",
+   "name": "Laser-Show",
+   "category": "Musik",
+   "icon": "🔺",
+   "audio": true,
+   "description": "Fächer aus Laserstrahlen, die zur Musik schwenken und auf den Beat aufblitzen.",
+   "params": [
+    {
+     "id": "count",
+     "label": "Strahlen",
+     "type": "float",
+     "min": 1,
+     "max": 12,
+     "step": 1,
+     "default": 7
+    },
+    {
+     "id": "spread",
+     "label": "Fächer",
+     "type": "float",
+     "min": 0.1,
+     "max": 3,
+     "step": 0.01,
+     "default": 1.6
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "width",
+     "label": "Breite",
+     "type": "float",
+     "min": 0.001,
+     "max": 0.03,
+     "step": 0.001,
+     "default": 0.004
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#22ff55"
+    },
+    {
+     "id": "rainbow",
+     "label": "Bunt",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.3
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = vec2((uv.x - 0.5) * uAspect, 1.0 - uv.y + 0.02);\n  vec3 acc = vec3(0.0);\n  for (int i = 0; i < 12; i++) {\n    float fi = float(i);\n    if (fi >= p_count) break;\n    float base = p_count > 1.0 ? fi / (p_count - 1.0) - 0.5 : 0.0;\n    float ang = base * p_spread + sin(uTime * p_speed * 0.8 + fi * 0.7) * (0.15 + uAudio.z * 0.5);\n    vec2 dir = vec2(sin(ang), cos(ang));\n    float d = abs(dot(p, vec2(dir.y, -dir.x)));\n    float beam = smoothstep(p_width * 3.0, 0.0, d) * step(0.0, dot(p, dir));\n    vec3 c = mix(p_color, hsv2rgb(vec3(fi / p_count + uBeatCount * 0.1, 0.9, 1.0)), p_rainbow);\n    acc += c * (beam + smoothstep(p_width, 0.0, d) * step(0.0, dot(p, dir)));\n  }\n  acc *= 0.35 + 0.5 * uAudio.x + uBeat * 0.8;\n  float a = clamp(max(acc.r, max(acc.g, acc.b)), 0.0, 1.0);\n  return vec4(acc / max(a, 1e-4), a);\n}"
+  },
+  {
+   "id": "basspulse",
+   "name": "Bass-Puls",
+   "category": "Musik",
+   "icon": "🔊",
+   "audio": true,
+   "description": "Die ganze Fläche leuchtet mit dem Bass und blitzt beim Beat – perfekt für Objekte.",
+   "params": [
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ff2a6d"
+    },
+    {
+     "id": "min",
+     "label": "Grundhelligkeit",
+     "type": "float",
+     "min": 0,
+     "max": 0.6,
+     "step": 0.01,
+     "default": 0.05
+    },
+    {
+     "id": "curve",
+     "label": "Härte",
+     "type": "float",
+     "min": 0.5,
+     "max": 4,
+     "step": 0.01,
+     "default": 1.5
+    },
+    {
+     "id": "flash",
+     "label": "Beat-Blitz",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "cycle",
+     "label": "Farbwechsel auf Beat",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float a = mix(p_min, 1.0, pow(uAudio.y, p_curve)) + uBeat * p_flash;\n  vec3 c = mix(p_color, hsv2rgb(vec3(hash11(uBeatCount * 3.1), 0.85, 1.0)), p_cycle);\n  return vec4(mix(c, vec3(1.0), uBeat * p_flash * 0.5), clamp(a, 0.0, 1.0));\n}"
+  },
+  {
+   "id": "meters",
+   "name": "Pegel-Balken",
+   "category": "Musik",
+   "icon": "🎛",
+   "audio": true,
+   "description": "Vier LED-Balken für Pegel, Bass, Mitten und Höhen.",
+   "params": [
+    {
+     "id": "dir",
+     "label": "Richtung",
+     "type": "select",
+     "options": [
+      "senkrecht",
+      "waagerecht"
+     ],
+     "default": 0
+    },
+    {
+     "id": "segments",
+     "label": "Segmente",
+     "type": "float",
+     "min": 4,
+     "max": 40,
+     "step": 1,
+     "default": 16
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = p_dir > 0.5 ? vec2(uv.y, uv.x) : vec2(uv.x, 1.0 - uv.y);\n  float id = floor(p.x * 4.0);\n  float fx = fract(p.x * 4.0);\n  float v = id < 0.5 ? uAudio.x : id < 1.5 ? uAudio.y : id < 2.5 ? uAudio.z : uAudio.w;\n  float seg = floor(p.y * p_segments) / p_segments;\n  float on = step(seg, v - 0.001) * step(0.1, fx) * step(fx, 0.9) * step(0.15, fract(p.y * p_segments));\n  vec3 c = mix(vec3(0.15, 0.9, 0.2), mix(vec3(1.0, 0.85, 0.1), vec3(1.0, 0.15, 0.1), step(0.85, seg)), step(0.6, seg));\n  return vec4(c, mix(0.08, 1.0, on) * step(0.1, fx) * step(fx, 0.9) * step(0.15, fract(p.y * p_segments)));\n}"
+  },
+  {
+   "id": "strobe",
+   "name": "Stroboskop",
+   "category": "Licht",
+   "icon": "⚡",
+   "description": "Harte Lichtblitze in einstellbarer Frequenz.",
+   "warning": "Achtung: Blitzlicht kann bei fotosensiblen Menschen epileptische Anfälle auslösen. Frequenz ist auf 12 Hz begrenzt.",
+   "params": [
+    {
+     "id": "freq",
+     "label": "Frequenz",
+     "type": "float",
+     "min": 0.5,
+     "max": 12,
+     "step": 0.1,
+     "default": 4,
+     "unit": "Hz"
+    },
+    {
+     "id": "duty",
+     "label": "Blitzlänge",
+     "type": "float",
+     "min": 0.05,
+     "max": 0.6,
+     "step": 0.01,
+     "default": 0.15
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ffffff"
+    },
+    {
+     "id": "sync",
+     "label": "Takt",
+     "type": "select",
+     "options": [
+      "Frequenz",
+      "Beat der Musik"
+     ],
+     "default": 0
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float on = step(fract(uTime * p_freq), p_duty);\n  // Beat-Modus: Blitz bei jedem Schlag, Länge über „Blitzlänge“\n  if (p_sync > 0.5) on = step(pow(0.86, 1.0 + p_duty * 25.0), uBeat);\n  return vec4(p_color, on);\n}"
+  },
+  {
+   "id": "pulse",
+   "name": "Pulsieren",
+   "category": "Licht",
+   "icon": "💗",
+   "description": "Weiches Ein- und Ausblenden im Takt (BPM).",
+   "params": [
+    {
+     "id": "bpm",
+     "label": "Takt",
+     "type": "float",
+     "min": 10,
+     "max": 200,
+     "step": 1,
+     "default": 60,
+     "unit": "BPM"
+    },
+    {
+     "id": "min",
+     "label": "Minimum",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.05
+    },
+    {
+     "id": "sharp",
+     "label": "Härte",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.3
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ff2a6d"
+    },
+    {
+     "id": "sync",
+     "label": "Takt",
+     "type": "select",
+     "options": [
+      "Frequenz",
+      "Beat der Musik"
+     ],
+     "default": 0
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float ph = fract(uTime * p_bpm / 60.0);\n  float w = 0.5 + 0.5 * cos(ph * TAU);\n  w = pow(w, 1.0 + p_sharp * 8.0);\n  if (p_sync > 0.5) w = pow(uBeat, 0.5 + p_sharp * 3.0);\n  return vec4(p_color, mix(p_min, 1.0, w));\n}"
+  },
+  {
+   "id": "beams",
+   "name": "Lichtkegel",
+   "category": "Licht",
+   "icon": "🔦",
+   "description": "Schwenkende Scheinwerfer-Strahlen wie Moving Heads.",
+   "params": [
+    {
+     "id": "count",
+     "label": "Anzahl",
+     "type": "float",
+     "min": 1,
+     "max": 8,
+     "step": 1,
+     "default": 3
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.6
+    },
+    {
+     "id": "width",
+     "label": "Breite",
+     "type": "float",
+     "min": 0.02,
+     "max": 0.5,
+     "step": 0.01,
+     "default": 0.12
+    },
+    {
+     "id": "swing",
+     "label": "Schwenk",
+     "type": "float",
+     "min": 0,
+     "max": 1.4,
+     "step": 0.01,
+     "default": 0.7
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#e0f2ff"
+    },
+    {
+     "id": "rainbow",
+     "label": "Bunt",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = vec2((uv.x - 0.5) * uAspect, 1.0 - uv.y);\n  vec3 acc = vec3(0.0);\n  for (int i = 0; i < 8; i++) {\n    float fi = float(i);\n    if (fi >= p_count) break;\n    float bx = ((fi + 0.5) / p_count - 0.5) * uAspect;\n    vec2 d = p - vec2(bx, -0.05);\n    float ang = atan(d.x, d.y);\n    float target = p_swing * sin(uTime * p_speed * (0.8 + 0.23 * fi) + fi * 1.7);\n    float beam = smoothstep(p_width, p_width * 0.25, abs(ang - target));\n    beam *= smoothstep(1.8, 0.1, length(d));\n    vec3 c = mix(p_color, hsv2rgb(vec3(fi / p_count + uTime * 0.05, 0.85, 1.0)), p_rainbow);\n    acc += c * beam;\n  }\n  float a = clamp(max(acc.r, max(acc.g, acc.b)), 0.0, 1.0);\n  return vec4(acc / max(a, 1e-4), a);\n}"
+  },
+  {
+   "id": "sweep",
+   "name": "Lichtwelle",
+   "category": "Licht",
+   "icon": "🌊",
+   "description": "Ein heller Lichtstreifen wandert über die Fläche.",
+   "params": [
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "angle",
+     "label": "Richtung",
+     "type": "float",
+     "min": 0,
+     "max": 360,
+     "step": 1,
+     "default": 0,
+     "unit": "°"
+    },
+    {
+     "id": "width",
+     "label": "Breite",
+     "type": "float",
+     "min": 0.02,
+     "max": 0.8,
+     "step": 0.01,
+     "default": 0.15
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ffffff"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 dir = vec2(cos(radians(p_angle)), sin(radians(p_angle)));\n  float x = dot(uv - 0.5, dir) + 0.5;\n  float pos = fract(uTime * p_speed * 0.5) * (1.0 + 2.0 * p_width) - p_width;\n  float a = smoothstep(p_width, 0.0, abs(x - pos));\n  return vec4(p_color, a);\n}"
+  },
+  {
+   "id": "colorstrobe",
+   "name": "Farb-Strobe",
+   "category": "Disco & Party",
+   "icon": "🌈",
+   "description": "Blitze in zufälligen, kräftigen Farben.",
+   "warning": "Achtung: Blitzlicht kann bei fotosensiblen Menschen epileptische Anfälle auslösen. Frequenz ist auf 12 Hz begrenzt.",
+   "params": [
+    {
+     "id": "freq",
+     "label": "Frequenz",
+     "type": "float",
+     "min": 0.5,
+     "max": 12,
+     "step": 0.1,
+     "default": 3,
+     "unit": "Hz"
+    },
+    {
+     "id": "duty",
+     "label": "Blitzlänge",
+     "type": "float",
+     "min": 0.05,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "sat",
+     "label": "Sättigung",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "sync",
+     "label": "Takt",
+     "type": "select",
+     "options": [
+      "Frequenz",
+      "Beat der Musik"
+     ],
+     "default": 0
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float k = floor(uTime * p_freq);\n  float on = step(fract(uTime * p_freq), p_duty);\n  // Beat-Modus: neue Farbe bei jedem Schlag\n  if (p_sync > 0.5) { k = uBeatCount; on = step(pow(0.86, 1.0 + p_duty * 25.0), uBeat); }\n  vec3 c = hsv2rgb(vec3(hash11(k * 1.73 + uSeed * 91.0), p_sat, 1.0));\n  return vec4(c, on);\n}"
+  },
+  {
+   "id": "discoball",
+   "name": "Discokugel",
+   "category": "Disco & Party",
+   "icon": "🪩",
+   "description": "Wandernde, funkelnde Lichtpunkte wie von einer Spiegelkugel.",
+   "params": [
+    {
+     "id": "density",
+     "label": "Dichte",
+     "type": "float",
+     "min": 4,
+     "max": 60,
+     "step": 1,
+     "default": 22
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "size",
+     "label": "Punktgröße",
+     "type": "float",
+     "min": 0.1,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.45
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ffffff"
+    },
+    {
+     "id": "rainbow",
+     "label": "Bunt",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.3
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 q = rot(0.35) * aspectUv(uv) * p_density * 0.25;\n  q.x += uTime * p_speed;\n  vec2 id = floor(q), f = fract(q) - 0.5;\n  float h = hash21(id + uSeed * 13.0);\n  vec2 off = (hash22(id) - 0.5) * 0.5;\n  float r = p_size * (0.12 + 0.2 * h);\n  float dotv = smoothstep(r, r * 0.35, length(f - off));\n  float tw = 0.4 + 0.6 * sin(uTime * (2.0 + h * 5.0) + h * TAU) * 0.5 + 0.3;\n  vec3 c = mix(p_color, hsv2rgb(vec3(h + uTime * 0.07, 0.75, 1.0)), p_rainbow);\n  return vec4(c, clamp(dotv * tw * step(0.3, h), 0.0, 1.0));\n}"
+  },
+  {
+   "id": "spots",
+   "name": "Disco-Spots",
+   "category": "Disco & Party",
+   "icon": "🎆",
+   "description": "Bunte, umherwandernde Scheinwerferkegel.",
+   "params": [
+    {
+     "id": "count",
+     "label": "Anzahl",
+     "type": "float",
+     "min": 1,
+     "max": 8,
+     "step": 1,
+     "default": 4
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.7
+    },
+    {
+     "id": "size",
+     "label": "Größe",
+     "type": "float",
+     "min": 0.05,
+     "max": 0.8,
+     "step": 0.01,
+     "default": 0.25
+    },
+    {
+     "id": "soft",
+     "label": "Weichheit",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.5
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv);\n  vec3 acc = vec3(0.0);\n  for (int i = 0; i < 8; i++) {\n    float fi = float(i);\n    if (fi >= p_count) break;\n    vec2 c = vec2(0.5 * uAspect + 0.45 * uAspect * sin(uTime * p_speed * (0.7 + 0.13 * fi) + fi * 2.1),\n                  0.5 + 0.45 * cos(uTime * p_speed * (0.9 + 0.11 * fi) + fi * 1.3));\n    float s = smoothstep(p_size, p_size * (1.0 - p_soft * 0.95), length(p - c));\n    acc += hsv2rgb(vec3(fi / p_count + uTime * 0.05, 0.9, 1.0)) * s;\n  }\n  float a = clamp(max(acc.r, max(acc.g, acc.b)), 0.0, 1.0);\n  return vec4(acc / max(a, 1e-4), a);\n}"
+  },
+  {
+   "id": "equalizer",
+   "name": "Equalizer",
+   "category": "Disco & Party",
+   "icon": "📊",
+   "description": "Hüpfende Balken wie bei einer Musikanlage.",
+   "params": [
+    {
+     "id": "bars",
+     "label": "Balken",
+     "type": "float",
+     "min": 3,
+     "max": 48,
+     "step": 1,
+     "default": 16
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "gap",
+     "label": "Abstand",
+     "type": "float",
+     "min": 0,
+     "max": 0.8,
+     "step": 0.01,
+     "default": 0.2
+    },
+    {
+     "id": "rainbow",
+     "label": "Bunt",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#22d3ee"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float x = uv.x * p_bars;\n  float id = floor(x);\n  float inBar = step(p_gap * 0.5, fract(x)) * step(fract(x), 1.0 - p_gap * 0.5);\n  float t = uTime * p_speed;\n  float h = 0.15 + 0.85 * abs(sin(t * (1.3 + hash11(id) * 2.0) + id * 0.7)) * (0.5 + 0.5 * noise(vec2(id, t)));\n  float y = 1.0 - uv.y;\n  float on = step(y, h) * inBar;\n  // Segmente wie bei LED-Anzeigen\n  on *= step(0.25, fract(y * 24.0));\n  vec3 c = mix(p_color, hsv2rgb(vec3(0.33 - y * 0.33, 1.0, 1.0)), p_rainbow);\n  return vec4(c, on);\n}"
+  },
+  {
+   "id": "confetti",
+   "name": "Konfetti",
+   "category": "Disco & Party",
+   "icon": "🎉",
+   "description": "Bunte Schnipsel rieseln herab.",
+   "params": [
+    {
+     "id": "density",
+     "label": "Dichte",
+     "type": "float",
+     "min": 4,
+     "max": 40,
+     "step": 1,
+     "default": 14
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.6
+    },
+    {
+     "id": "size",
+     "label": "Größe",
+     "type": "float",
+     "min": 0.1,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.4
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) * p_density;\n  vec4 col = vec4(0.0);\n  for (int layer = 0; layer < 3; layer++) {\n    float fl = float(layer);\n    vec2 q = p * (1.0 + fl * 0.35);\n    float colId = floor(q.x);\n    q.y -= uTime * p_speed * (2.0 + hash11(colId + fl * 7.0) * 2.0);\n    vec2 id = floor(q), f = fract(q) - 0.5;\n    float h = hash21(id + fl * 31.0);\n    if (h < 0.55) continue;\n    f = rot(uTime * (h - 0.5) * 8.0 + h * 6.0) * (f - (hash22(id) - 0.5) * 0.4);\n    float s = p_size * 0.35;\n    float r = step(abs(f.x), s) * step(abs(f.y), s * 0.45);\n    if (r > 0.0) col = vec4(hsv2rgb(vec3(h * 7.0, 0.85, 1.0)), 1.0);\n  }\n  return col;\n}"
+  },
+  {
+   "id": "edgechase",
+   "name": "Kantenlauf",
+   "category": "Kontur",
+   "icon": "🔲",
+   "description": "Licht fährt die Umrisslinie der Fläche entlang – der klassische Mapping-Effekt.",
+   "params": [
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#22d3ee"
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "count",
+     "label": "Anzahl",
+     "type": "float",
+     "min": 1,
+     "max": 8,
+     "step": 1,
+     "default": 1
+    },
+    {
+     "id": "length",
+     "label": "Schweiflänge",
+     "type": "float",
+     "min": 0.02,
+     "max": 0.9,
+     "step": 0.01,
+     "default": 0.25
+    },
+    {
+     "id": "width",
+     "label": "Linienbreite",
+     "type": "float",
+     "min": 0.005,
+     "max": 0.2,
+     "step": 0.001,
+     "default": 0.025
+    },
+    {
+     "id": "glow",
+     "label": "Leuchten",
+     "type": "float",
+     "min": 0,
+     "max": 0.2,
+     "step": 0.001,
+     "default": 0.03
+    },
+    {
+     "id": "base",
+     "label": "Grundlinie",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.08
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 pd = perimeter(uv);\n  float head = fract(uTime * p_speed * 0.25);\n  float b = fract((head - pd.x) * p_count);\n  float trail = 1.0 - smoothstep(0.0, min(0.999, p_length), b);\n  trail = pow(trail, 1.5);\n  float line = 1.0 - smoothstep(p_width, p_width + p_glow + 0.002, pd.y);\n  return vec4(p_color, clamp(max(trail, p_base) * line, 0.0, 1.0));\n}"
+  },
+  {
+   "id": "marquee",
+   "name": "Lauflicht",
+   "category": "Kontur",
+   "icon": "💡",
+   "description": "Glühbirnen entlang des Randes, die im Kreis laufen – wie an einem Kinoschild.",
+   "params": [
+    {
+     "id": "bulbs",
+     "label": "Birnen",
+     "type": "float",
+     "min": 8,
+     "max": 160,
+     "step": 1,
+     "default": 48
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "size",
+     "label": "Größe",
+     "type": "float",
+     "min": 0.005,
+     "max": 0.08,
+     "step": 0.001,
+     "default": 0.022
+    },
+    {
+     "id": "pattern",
+     "label": "Muster",
+     "type": "select",
+     "options": [
+      "jede 3.",
+      "jede 2.",
+      "Welle",
+      "Zufall"
+     ],
+     "default": 0
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ffd27a"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 pd = perimeter(uv);\n  float N = p_bulbs;\n  float seg = (2.0 * uAspect + 2.0) / N;\n  float x = pd.x * N;\n  float id = floor(x);\n  vec2 local = vec2((fract(x) - 0.5) * seg, pd.y - p_size * 1.4);\n  float bulb = smoothstep(p_size, p_size * 0.5, length(local));\n  float t = uTime * p_speed * 4.0;\n  float on;\n  if (p_pattern < 0.5) on = mod(id + floor(t), 3.0) < 1.0 ? 1.0 : 0.12;\n  else if (p_pattern < 1.5) on = mod(id + floor(t), 2.0) < 1.0 ? 1.0 : 0.12;\n  else if (p_pattern < 2.5) on = 0.15 + 0.85 * pow(0.5 + 0.5 * sin(id * 0.5 - t), 3.0);\n  else on = step(0.5, hash11(id + floor(t) * 13.0)) * 0.88 + 0.12;\n  return vec4(p_color, bulb * on);\n}"
+  },
+  {
+   "id": "outline",
+   "name": "Neon-Rahmen",
+   "category": "Kontur",
+   "icon": "🟪",
+   "description": "Leuchtender Neonrahmen mit Farbwechsel und Flackern.",
+   "params": [
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ff2bd6"
+    },
+    {
+     "id": "width",
+     "label": "Linienbreite",
+     "type": "float",
+     "min": 0.003,
+     "max": 0.15,
+     "step": 0.001,
+     "default": 0.02
+    },
+    {
+     "id": "glow",
+     "label": "Leuchten",
+     "type": "float",
+     "min": 0,
+     "max": 0.3,
+     "step": 0.001,
+     "default": 0.06
+    },
+    {
+     "id": "cycle",
+     "label": "Farbwechsel",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0
+    },
+    {
+     "id": "flicker",
+     "label": "Flackern",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.1
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float d = perimeter(uv).y;\n  float core = 1.0 - smoothstep(p_width * 0.6, p_width, d);\n  float halo = exp(-max(d - p_width, 0.0) / max(p_glow, 1e-3) * 2.0) * 0.6 * step(0.0001, p_glow);\n  float fl = 1.0 - p_flicker * step(0.92, noise(vec2(uTime * 18.0, uSeed * 10.0)));\n  vec3 c = mix(p_color, hsv2rgb(vec3(uTime * 0.1 + perimeter(uv).x, 0.9, 1.0)), p_cycle);\n  return vec4(mix(c, vec3(1.0), core * 0.35), clamp((core + halo) * fl, 0.0, 1.0));\n}"
+  },
+  {
+   "id": "fire",
+   "name": "Feuer",
+   "category": "Natur",
+   "icon": "🔥",
+   "description": "Lodernde Flammen, die von unten aufsteigen.",
+   "params": [
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "height",
+     "label": "Höhe",
+     "type": "float",
+     "min": 0.2,
+     "max": 1.5,
+     "step": 0.01,
+     "default": 0.75
+    },
+    {
+     "id": "intensity",
+     "label": "Stärke",
+     "type": "float",
+     "min": 0.2,
+     "max": 2,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "scale",
+     "label": "Größe",
+     "type": "float",
+     "min": 0.5,
+     "max": 4,
+     "step": 0.01,
+     "default": 1.5
+    },
+    {
+     "id": "tint",
+     "label": "Farbton",
+     "type": "select",
+     "options": [
+      "Orange",
+      "Blau",
+      "Grün",
+      "Lila"
+     ],
+     "default": 0
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = vec2(uv.x * uAspect, 1.0 - uv.y);\n  float t = uTime * p_speed;\n  vec2 q = p * p_scale * 2.0;\n  float n = fbm(vec2(q.x * 1.4, q.y - t * 1.6) + uSeed * 10.0);\n  float n2 = fbm(vec2(q.x * 3.0 + 5.0, q.y * 2.0 - t * 2.8));\n  float f = n * 0.7 + n2 * 0.4;\n  float h = p.y / p_height;\n  float flame = clamp(f * 1.7 - h * 1.25 + 0.15, 0.0, 1.0);\n  flame = pow(flame, 1.4) * p_intensity;\n  vec3 c1 = vec3(0.75, 0.05, 0.0), c2 = vec3(1.0, 0.5, 0.05), c3 = vec3(1.0, 0.95, 0.65);\n  if (p_tint > 2.5) { c1 = vec3(0.3, 0.0, 0.6); c2 = vec3(0.7, 0.2, 1.0); c3 = vec3(1.0, 0.8, 1.0); }\n  else if (p_tint > 1.5) { c1 = vec3(0.0, 0.35, 0.05); c2 = vec3(0.2, 0.9, 0.2); c3 = vec3(0.85, 1.0, 0.7); }\n  else if (p_tint > 0.5) { c1 = vec3(0.0, 0.05, 0.6); c2 = vec3(0.1, 0.5, 1.0); c3 = vec3(0.8, 0.95, 1.0); }\n  vec3 col = mix(c1, c2, smoothstep(0.15, 0.55, flame));\n  col = mix(col, c3, smoothstep(0.6, 1.0, flame));\n  return vec4(col, clamp(smoothstep(0.02, 0.35, flame), 0.0, 1.0));\n}"
+  },
+  {
+   "id": "water",
+   "name": "Wasser",
+   "category": "Natur",
+   "icon": "💧",
+   "description": "Lichtspiel wie am Grund eines Schwimmbads (Kaustik).",
+   "params": [
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "scale",
+     "label": "Größe",
+     "type": "float",
+     "min": 0.3,
+     "max": 6,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#2bb3ff"
+    },
+    {
+     "id": "bright",
+     "label": "Helligkeit",
+     "type": "float",
+     "min": 0.2,
+     "max": 2,
+     "step": 0.01,
+     "default": 1
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  // Klassische „Tileable Water Caustic“-Formel; der große Versatz (−250) ist Teil des Musters\n  vec2 p = mod(aspectUv(uv) * p_scale * TAU, TAU) - 250.0;\n  float t = uTime * p_speed + 23.0;\n  vec2 i = p;\n  float c = 1.0;\n  float inten = 0.005;\n  for (int n = 0; n < 5; n++) {\n    float tt = t * (1.0 - (3.5 / float(n + 1)));\n    i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));\n    c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / inten), p.y / (cos(i.y + tt) / inten)));\n  }\n  c /= 5.0;\n  c = 1.17 - pow(c, 1.4);\n  float v = pow(abs(c), 8.0);\n  vec3 col = clamp(p_color * 0.45 + vec3(v), 0.0, 1.0) * p_bright;\n  return vec4(col, 1.0);\n}"
+  },
+  {
+   "id": "smoke",
+   "name": "Nebel",
+   "category": "Natur",
+   "icon": "🌫",
+   "description": "Wabernde Nebelschwaden.",
+   "params": [
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 2,
+     "step": 0.01,
+     "default": 0.3
+    },
+    {
+     "id": "scale",
+     "label": "Größe",
+     "type": "float",
+     "min": 0.5,
+     "max": 6,
+     "step": 0.01,
+     "default": 2
+    },
+    {
+     "id": "density",
+     "label": "Dichte",
+     "type": "float",
+     "min": 0,
+     "max": 1.5,
+     "step": 0.01,
+     "default": 0.8
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#9db4ff"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) * p_scale;\n  float t = uTime * p_speed;\n  vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(5.2, -t * 0.7)));\n  float f = fbm(p + 2.0 * q + vec2(t * 0.3, 0.0));\n  float a = clamp((f - 0.35) * 2.0 * p_density, 0.0, 1.0);\n  return vec4(p_color, a);\n}"
+  },
+  {
+   "id": "stars",
+   "name": "Sternenhimmel",
+   "category": "Natur",
+   "icon": "✨",
+   "description": "Funkelnde Sterne, optional mit Sternschnuppen.",
+   "params": [
+    {
+     "id": "density",
+     "label": "Dichte",
+     "type": "float",
+     "min": 5,
+     "max": 80,
+     "step": 1,
+     "default": 30
+    },
+    {
+     "id": "twinkle",
+     "label": "Funkeln",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.7
+    },
+    {
+     "id": "shooting",
+     "label": "Sternschnuppen",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.4
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ffffff"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) * p_density;\n  vec2 id = floor(p), f = fract(p) - 0.5;\n  float h = hash21(id + uSeed * 7.0);\n  vec2 off = (hash22(id) - 0.5) * 0.7;\n  float size = 0.04 + 0.08 * h * h;\n  float star = smoothstep(size, 0.0, length(f - off)) * step(0.55, h);\n  star *= mix(1.0, 0.5 + 0.5 * sin(uTime * (1.0 + h * 5.0) + h * 40.0), p_twinkle);\n  // Sternschnuppe: alle paar Sekunden eine helle Linie\n  float k = floor(uTime * 0.4);\n  float ph = fract(uTime * 0.4);\n  vec2 a = vec2(hash11(k) * uAspect, hash11(k + 3.0) * 0.5);\n  vec2 dir = normalize(vec2(1.0, 0.45));\n  vec2 head = a + dir * ph * 1.2;\n  vec2 d = aspectUv(uv) - head;\n  float along = dot(d, -dir);\n  float across = abs(dot(d, vec2(-dir.y, dir.x)));\n  float tail = smoothstep(0.004, 0.0, across) * smoothstep(0.3, 0.0, along) * step(0.0, along);\n  float shoot = tail * step(ph, 0.35) * step(1.0 - p_shooting, hash11(k + 9.0));\n  return vec4(p_color, clamp(star + shoot, 0.0, 1.0));\n}"
+  },
+  {
+   "id": "rain",
+   "name": "Regen",
+   "category": "Natur",
+   "icon": "🌧",
+   "description": "Fallende Regenstreifen.",
+   "params": [
+    {
+     "id": "density",
+     "label": "Dichte",
+     "type": "float",
+     "min": 10,
+     "max": 120,
+     "step": 1,
+     "default": 50
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "angle",
+     "label": "Neigung",
+     "type": "float",
+     "min": -0.6,
+     "max": 0.6,
+     "step": 0.01,
+     "default": 0.15
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#9cc9ff"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv);\n  p.x += p.y * p_angle;\n  float col = floor(p.x * p_density);\n  float h = hash11(col + uSeed * 50.0);\n  float y = fract(p.y * 1.5 - uTime * p_speed * (1.2 + h) - h * 10.0);\n  float drop = smoothstep(0.0, 0.15, y) * smoothstep(0.32, 0.15, y);\n  float thin = smoothstep(0.5, 0.2, abs(fract(p.x * p_density) - 0.5));\n  return vec4(p_color, drop * thin * step(0.35, h));\n}"
+  },
+  {
+   "id": "lines",
+   "name": "Linienmuster",
+   "category": "Muster",
+   "icon": "〰",
+   "description": "Wandernde Streifen in beliebigem Winkel.",
+   "params": [
+    {
+     "id": "count",
+     "label": "Anzahl",
+     "type": "float",
+     "min": 1,
+     "max": 60,
+     "step": 1,
+     "default": 10
+    },
+    {
+     "id": "thickness",
+     "label": "Breite",
+     "type": "float",
+     "min": 0.02,
+     "max": 0.98,
+     "step": 0.01,
+     "default": 0.3
+    },
+    {
+     "id": "angle",
+     "label": "Winkel",
+     "type": "float",
+     "min": 0,
+     "max": 180,
+     "step": 1,
+     "default": 45,
+     "unit": "°"
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "soft",
+     "label": "Weichheit",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.05
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ffffff"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) - vec2(uAspect * 0.5, 0.5);\n  float a = radians(p_angle);\n  float x = dot(p, vec2(cos(a), sin(a))) * p_count - uTime * p_speed;\n  float f = fract(x);\n  float s = max(p_soft * 0.5, 0.005);\n  float on = smoothstep(0.0, s, f) * (1.0 - smoothstep(p_thickness - s, p_thickness, f));\n  return vec4(p_color, on);\n}"
+  },
+  {
+   "id": "checker",
+   "name": "Schachbrett",
+   "category": "Muster",
+   "icon": "🏁",
+   "description": "Blinkende oder wandernde Felder.",
+   "params": [
+    {
+     "id": "cols",
+     "label": "Felder",
+     "type": "float",
+     "min": 2,
+     "max": 40,
+     "step": 1,
+     "default": 8
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "mode",
+     "label": "Bewegung",
+     "type": "select",
+     "options": [
+      "Blinken",
+      "Wandern",
+      "Zufall"
+     ],
+     "default": 0
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ffffff"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) * p_cols / uAspect;\n  float t = uTime * p_speed;\n  if (p_mode > 0.5 && p_mode < 1.5) p.x += t;\n  vec2 id = floor(p);\n  float on = mod(id.x + id.y, 2.0);\n  if (p_mode < 0.5) on = abs(on - step(0.5, fract(t)));\n  if (p_mode > 1.5) on = step(0.5, hash21(id + floor(t * 2.0)));\n  return vec4(p_color, on);\n}"
+  },
+  {
+   "id": "rings",
+   "name": "Ringe",
+   "category": "Muster",
+   "icon": "◎",
+   "description": "Konzentrische Ringe breiten sich von der Mitte aus.",
+   "params": [
+    {
+     "id": "count",
+     "label": "Anzahl",
+     "type": "float",
+     "min": 1,
+     "max": 30,
+     "step": 1,
+     "default": 6
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "thickness",
+     "label": "Breite",
+     "type": "float",
+     "min": 0.05,
+     "max": 0.95,
+     "step": 0.01,
+     "default": 0.3
+    },
+    {
+     "id": "rainbow",
+     "label": "Bunt",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.6
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#38bdf8"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float r = length(aspectUv(uv) - vec2(uAspect * 0.5, 0.5));\n  float x = r * p_count - uTime * p_speed;\n  float on = smoothstep(0.0, 0.03, fract(x)) * (1.0 - smoothstep(p_thickness - 0.03, p_thickness, fract(x)));\n  vec3 c = mix(p_color, hsv2rgb(vec3(floor(x) * 0.13, 0.85, 1.0)), p_rainbow);\n  return vec4(c, on);\n}"
+  },
+  {
+   "id": "kaleido",
+   "name": "Kaleidoskop",
+   "category": "Muster",
+   "icon": "❄",
+   "description": "Drehendes, gespiegeltes Farbmuster.",
+   "params": [
+    {
+     "id": "segments",
+     "label": "Segmente",
+     "type": "float",
+     "min": 3,
+     "max": 16,
+     "step": 1,
+     "default": 6
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 2,
+     "step": 0.01,
+     "default": 0.3
+    },
+    {
+     "id": "zoom",
+     "label": "Zoom",
+     "type": "float",
+     "min": 0.5,
+     "max": 6,
+     "step": 0.01,
+     "default": 2
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) - vec2(uAspect * 0.5, 0.5);\n  float t = uTime * p_speed;\n  float a = atan(p.y, p.x) + t * 0.3;\n  float r = length(p);\n  float seg = TAU / p_segments;\n  a = mod(a, seg);\n  a = abs(a - seg * 0.5);\n  vec2 q = vec2(cos(a), sin(a)) * r * p_zoom;\n  float f = fbm(q * 2.0 + vec2(t, -t * 0.5));\n  vec3 c = hsv2rgb(vec3(f * 1.5 + t * 0.1, 0.8, smoothstep(0.25, 0.75, f)));\n  return vec4(c, 1.0);\n}"
+  },
+  {
+   "id": "plasma",
+   "name": "Plasma",
+   "category": "Farbe",
+   "icon": "🫧",
+   "description": "Fließende, bunte Farbwolken.",
+   "params": [
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "scale",
+     "label": "Größe",
+     "type": "float",
+     "min": 0.5,
+     "max": 8,
+     "step": 0.01,
+     "default": 3
+    },
+    {
+     "id": "sat",
+     "label": "Sättigung",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.85
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) * p_scale;\n  float t = uTime * p_speed;\n  float v = sin(p.x + t) + sin((p.y + t) * 0.7) + sin((p.x + p.y + t) * 0.6) + sin(length(p - vec2(sin(t * 0.5), cos(t * 0.4)) * 2.0) * 1.5);\n  return vec4(hsv2rgb(vec3(v * 0.15 + t * 0.05, p_sat, 1.0)), 1.0);\n}"
+  },
+  {
+   "id": "gradient",
+   "name": "Farbverlauf",
+   "category": "Farbe",
+   "icon": "🎨",
+   "description": "Verlauf zwischen zwei Farben, optional wandernd.",
+   "params": [
+    {
+     "id": "colorA",
+     "label": "Farbe 1",
+     "type": "color",
+     "default": "#ff2a6d"
+    },
+    {
+     "id": "colorB",
+     "label": "Farbe 2",
+     "type": "color",
+     "default": "#05d9e8"
+    },
+    {
+     "id": "angle",
+     "label": "Winkel",
+     "type": "float",
+     "min": 0,
+     "max": 360,
+     "step": 1,
+     "default": 90,
+     "unit": "°"
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 2,
+     "step": 0.01,
+     "default": 0.2
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 d = vec2(cos(radians(p_angle)), sin(radians(p_angle)));\n  float x = dot(uv - 0.5, d) + 0.5 + uTime * p_speed * 0.2;\n  float k = 0.5 - 0.5 * cos(x * TAU);\n  return vec4(mix(p_colorA, p_colorB, k), 1.0);\n}"
+  },
+  {
+   "id": "rainbow",
+   "name": "Regenbogen",
+   "category": "Farbe",
+   "icon": "🌈",
+   "description": "Durchlaufender Regenbogen.",
+   "params": [
+    {
+     "id": "angle",
+     "label": "Winkel",
+     "type": "float",
+     "min": 0,
+     "max": 360,
+     "step": 1,
+     "default": 0,
+     "unit": "°"
+    },
+    {
+     "id": "scale",
+     "label": "Wiederholungen",
+     "type": "float",
+     "min": 0.2,
+     "max": 6,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 3,
+     "step": 0.01,
+     "default": 0.3
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 d = vec2(cos(radians(p_angle)), sin(radians(p_angle)));\n  float x = dot(uv - 0.5, d) * p_scale - uTime * p_speed * 0.3;\n  return vec4(hsv2rgb(vec3(x, 0.9, 1.0)), 1.0);\n}"
+  },
+  {
+   "id": "glitch",
+   "name": "Glitch",
+   "category": "Digital",
+   "icon": "📺",
+   "description": "Digitale Störungen: verschobene Blöcke, Farbkanäle, Rauschen.",
+   "params": [
+    {
+     "id": "amount",
+     "label": "Stärke",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "color",
+     "label": "Grundfarbe",
+     "type": "color",
+     "default": "#00ffd0"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float t = floor(uTime * p_speed * 12.0);\n  float band = floor(uv.y * 24.0);\n  float shift = (hash21(vec2(band, t)) - 0.5) * p_amount * step(1.0 - p_amount * 0.6, hash21(vec2(band * 3.0, t)));\n  vec2 q = uv + vec2(shift, 0.0);\n  vec2 cell = floor(q * vec2(16.0, 9.0));\n  float blk = step(0.5 + 0.45 * (1.0 - p_amount), hash21(cell + t));\n  float r = step(0.5, fract(q.x * 6.0 + 0.05 * p_amount + t * 0.1));\n  float g = step(0.5, fract(q.x * 6.0 + t * 0.1));\n  float b = step(0.5, fract(q.x * 6.0 - 0.05 * p_amount + t * 0.1));\n  vec3 c = mix(p_color * 0.15, vec3(r, g, b) * p_color + vec3(r, 0.0, b) * 0.4, blk);\n  float scan = 0.8 + 0.2 * sin(uv.y * 400.0);\n  float n = hash21(uv * 300.0 + t) * p_amount * 0.4;\n  return vec4(c * scan + n, 1.0);\n}"
+  },
+  {
+   "id": "matrix",
+   "name": "Matrix-Regen",
+   "category": "Digital",
+   "icon": "🟩",
+   "description": "Herabfallende Zeichen-Spalten.",
+   "params": [
+    {
+     "id": "cols",
+     "label": "Spalten",
+     "type": "float",
+     "min": 8,
+     "max": 120,
+     "step": 1,
+     "default": 40
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 1
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#22ff66"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = aspectUv(uv) * p_cols / uAspect;\n  vec2 id = floor(p), f = fract(p);\n  float h = hash11(id.x + uSeed * 30.0);\n  float head = fract(-uTime * p_speed * (0.15 + 0.2 * h) + h) * (p_cols / uAspect + 12.0) - 6.0;\n  float dist = head - id.y;\n  float trail = dist >= 0.0 ? exp(-dist * 0.25) : 0.0;\n  // „Zeichen“: zufällige Pixelmuster in 3×5-Raster, die gelegentlich wechseln\n  vec2 g = floor(f * vec2(3.0, 5.0));\n  float glyph = step(0.45, hash21(g + id * 7.0 + floor(uTime * (1.0 + h * 3.0))));\n  glyph *= step(0.1, f.x) * step(f.x, 0.9) * step(0.08, f.y) * step(f.y, 0.92);\n  vec3 c = mix(p_color, vec3(0.85, 1.0, 0.9), step(dist, 0.9) * step(0.0, dist));\n  return vec4(c, glyph * trail);\n}"
+  },
+  {
+   "id": "scanlines",
+   "name": "Scanlines",
+   "category": "Digital",
+   "icon": "📟",
+   "description": "Laufende Bildschirmzeilen wie bei alten Monitoren.",
+   "params": [
+    {
+     "id": "count",
+     "label": "Zeilen",
+     "type": "float",
+     "min": 10,
+     "max": 300,
+     "step": 1,
+     "default": 80
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 4,
+     "step": 0.01,
+     "default": 0.5
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#7dd3fc"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float lines = 0.55 + 0.45 * sin(uv.y * p_count * PI);\n  float bar = smoothstep(0.12, 0.0, abs(fract(uv.y - uTime * p_speed * 0.3) - 0.5) - 0.38);\n  return vec4(p_color, clamp(lines * 0.35 + bar * 0.65, 0.0, 1.0));\n}"
+  },
+  {
+   "id": "windows",
+   "name": "Fenster",
+   "category": "Architektur",
+   "icon": "🏢",
+   "description": "Fenster gehen nacheinander an und aus – für Fassaden und Modellhäuser.",
+   "params": [
+    {
+     "id": "cols",
+     "label": "Spalten",
+     "type": "float",
+     "min": 1,
+     "max": 24,
+     "step": 1,
+     "default": 6
+    },
+    {
+     "id": "rows",
+     "label": "Stockwerke",
+     "type": "float",
+     "min": 1,
+     "max": 16,
+     "step": 1,
+     "default": 4
+    },
+    {
+     "id": "speed",
+     "label": "Tempo",
+     "type": "float",
+     "min": 0,
+     "max": 2,
+     "step": 0.01,
+     "default": 0.3
+    },
+    {
+     "id": "lit",
+     "label": "Anteil an",
+     "type": "float",
+     "min": 0,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.55
+    },
+    {
+     "id": "frame",
+     "label": "Rahmen",
+     "type": "float",
+     "min": 0.02,
+     "max": 0.45,
+     "step": 0.01,
+     "default": 0.18
+    },
+    {
+     "id": "color",
+     "label": "Licht",
+     "type": "color",
+     "default": "#ffcf7a"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  vec2 p = uv * vec2(p_cols, p_rows);\n  vec2 id = floor(p), f = fract(p);\n  float inside = step(p_frame, f.x) * step(f.x, 1.0 - p_frame) * step(p_frame, f.y) * step(f.y, 1.0 - p_frame);\n  float h = hash21(id + uSeed * 17.0);\n  float t = uTime * p_speed * (0.3 + h);\n  float k = floor(t + h * 10.0);\n  float lit = step(1.0 - p_lit, hash21(id + k * 0.37));\n  float fade = smoothstep(0.0, 0.15, fract(t + h * 10.0));\n  // leichter Farbunterschied je Fenster (Lampen sind nie gleich)\n  vec3 c = p_color * (0.75 + 0.35 * h);\n  return vec4(c, inside * lit * mix(0.6, 1.0, fade));\n}"
+  },
+  {
+   "id": "sun",
+   "name": "Sonnenlauf",
+   "category": "Architektur",
+   "icon": "☀",
+   "description": "Sonnenlicht wandert über die Fläche – von Morgenrot bis Mittagslicht.",
+   "params": [
+    {
+     "id": "duration",
+     "label": "Tageslänge",
+     "type": "float",
+     "min": 2,
+     "max": 120,
+     "step": 1,
+     "default": 20,
+     "unit": "s"
+    },
+    {
+     "id": "soft",
+     "label": "Weichheit",
+     "type": "float",
+     "min": 0.05,
+     "max": 1,
+     "step": 0.01,
+     "default": 0.45
+    },
+    {
+     "id": "ambient",
+     "label": "Grundlicht",
+     "type": "float",
+     "min": 0,
+     "max": 0.6,
+     "step": 0.01,
+     "default": 0.08
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float ph = fract(uTime / p_duration);\n  float elev = sin(ph * PI);\n  vec2 sunPos = vec2(mix(-0.2, 1.2, ph), 1.1 - elev * 1.2);\n  vec2 d = aspectUv(uv) - vec2(sunPos.x * uAspect, sunPos.y);\n  float light = exp(-dot(d, d) / (p_soft * p_soft * 2.0));\n  vec3 warm = vec3(1.0, 0.55, 0.25), noon = vec3(1.0, 0.97, 0.88);\n  vec3 c = mix(warm, noon, smoothstep(0.2, 0.8, elev));\n  float a = clamp(p_ambient + light * smoothstep(0.0, 0.15, elev), 0.0, 1.0);\n  return vec4(c, a);\n}"
+  },
+  {
+   "id": "phases",
+   "name": "Bauphasen",
+   "category": "Architektur",
+   "icon": "🧱",
+   "description": "Die Fläche füllt sich Schritt für Schritt – für Modelle und Präsentationen.",
+   "params": [
+    {
+     "id": "steps",
+     "label": "Schritte",
+     "type": "float",
+     "min": 2,
+     "max": 12,
+     "step": 1,
+     "default": 5
+    },
+    {
+     "id": "duration",
+     "label": "Dauer je Schritt",
+     "type": "float",
+     "min": 0.3,
+     "max": 10,
+     "step": 0.1,
+     "default": 2,
+     "unit": "s"
+    },
+    {
+     "id": "dir",
+     "label": "Richtung",
+     "type": "select",
+     "options": [
+      "von unten",
+      "von links",
+      "von der Mitte",
+      "Raster"
+     ],
+     "default": 0
+    },
+    {
+     "id": "colorA",
+     "label": "Farbe Anfang",
+     "type": "color",
+     "default": "#3b82f6"
+    },
+    {
+     "id": "colorB",
+     "label": "Farbe Ende",
+     "type": "color",
+     "default": "#f59e0b"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float total = p_steps + 1.0;\n  float k = mod(floor(uTime / p_duration), total);\n  float fade = smoothstep(0.0, 0.25, fract(uTime / p_duration));\n  float x;\n  if (p_dir < 0.5) x = 1.0 - uv.y;\n  else if (p_dir < 1.5) x = uv.x;\n  else if (p_dir < 2.5) x = max(abs(uv.x - 0.5), abs(uv.y - 0.5)) * 2.0;\n  else x = hash21(floor(uv * vec2(6.0, 4.0)) + 3.0);\n  float s = floor(x * p_steps);\n  float on = s < k - 1.0 ? 1.0 : (s < k ? fade : 0.0);\n  vec3 c = mix(p_colorA, p_colorB, s / max(p_steps - 1.0, 1.0));\n  return vec4(c, on);\n}"
+  },
+  {
+   "id": "wipe",
+   "name": "Aufbau / Wipe",
+   "category": "Architektur",
+   "icon": "▶",
+   "description": "Farbe füllt die Fläche von einer Seite, aus der Mitte oder als Raster.",
+   "params": [
+    {
+     "id": "dir",
+     "label": "Art",
+     "type": "select",
+     "options": [
+      "links → rechts",
+      "unten → oben",
+      "aus der Mitte",
+      "Raster",
+      "Diagonale"
+     ],
+     "default": 0
+    },
+    {
+     "id": "duration",
+     "label": "Dauer",
+     "type": "float",
+     "min": 0.3,
+     "max": 20,
+     "step": 0.1,
+     "default": 3,
+     "unit": "s"
+    },
+    {
+     "id": "hold",
+     "label": "Halten",
+     "type": "float",
+     "min": 0,
+     "max": 10,
+     "step": 0.1,
+     "default": 1,
+     "unit": "s"
+    },
+    {
+     "id": "soft",
+     "label": "Kante",
+     "type": "float",
+     "min": 0,
+     "max": 0.5,
+     "step": 0.01,
+     "default": 0.05
+    },
+    {
+     "id": "color",
+     "label": "Farbe",
+     "type": "color",
+     "default": "#ffffff"
+    }
+   ],
+   "glsl": "vec4 effect(vec2 uv) {\n  float cycle = p_duration * 2.0 + p_hold * 2.0;\n  float t = mod(uTime, cycle);\n  float prog = t < p_duration ? t / p_duration\n             : t < p_duration + p_hold ? 1.0\n             : t < p_duration * 2.0 + p_hold ? 1.0 - (t - p_duration - p_hold) / p_duration : 0.0;\n  float x;\n  if (p_dir < 0.5) x = uv.x;\n  else if (p_dir < 1.5) x = 1.0 - uv.y;\n  else if (p_dir < 2.5) x = length((uv - 0.5) * vec2(uAspect, 1.0)) / length(vec2(uAspect, 1.0) * 0.5);\n  else if (p_dir < 3.5) x = hash21(floor(uv * vec2(8.0, 6.0)) + 1.0) * 0.999;\n  else x = (uv.x + 1.0 - uv.y) * 0.5;\n  float s = max(p_soft, 0.001);\n  float on = 1.0 - smoothstep(prog * (1.0 + s) - s, prog * (1.0 + s), x);\n  return vec4(p_color, on);\n}"
+  }
+ ]
+}
