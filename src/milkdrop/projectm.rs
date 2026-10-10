@@ -23,7 +23,6 @@ pub struct Api {
     set_fps: Option<unsafe extern "C" fn(Handle, i32)>,
     set_texture_search_paths: Option<unsafe extern "C" fn(Handle, *const *const c_char, usize)>,
     pcm_add_float: unsafe extern "C" fn(Handle, *const f32, u32, c_int),
-    render_frame: unsafe extern "C" fn(Handle),
     render_frame_fbo: Option<unsafe extern "C" fn(Handle, u32)>,
 }
 
@@ -56,6 +55,12 @@ pub fn candidates() -> Vec<PathBuf> {
 }
 
 impl Api {
+    /// projectM ab 4.2 kann in ein eigenes Framebuffer-Objekt zeichnen – das braucht die App
+    /// (ein unsichtbarer Kontext hat kein Fenster, in das 4.1 zeichnen würde)
+    pub fn supports_fbo(&self) -> bool {
+        self.render_frame_fbo.is_some()
+    }
+
     pub fn load() -> Result<Self, String> {
         let mut last = String::from("libprojectM-4 nicht gefunden");
         for p in candidates() {
@@ -96,7 +101,6 @@ impl Api {
                 set_fps: opt!("projectm_set_fps"),
                 set_texture_search_paths: opt!("projectm_set_texture_search_paths"),
                 pcm_add_float: req!("projectm_pcm_add_float"),
-                render_frame: req!("projectm_opengl_render_frame"),
                 render_frame_fbo: opt!("projectm_opengl_render_frame_fbo"),
                 path: path.to_path_buf(),
                 _lib: lib,
@@ -173,13 +177,10 @@ impl<'a> Instance<'a> {
         unsafe { (self.api.pcm_add_float)(self.handle, mono.as_ptr(), mono.len() as u32, 1) }
     }
 
-    /// In das Framebuffer-Objekt fbo zeichnen (vorher gebunden)
+    /// In das Framebuffer-Objekt fbo zeichnen
     pub fn render(&self, fbo: u32) {
-        unsafe {
-            match self.api.render_frame_fbo {
-                Some(f) => f(self.handle, fbo),
-                None => (self.api.render_frame)(self.handle),
-            }
+        if let Some(f) = self.api.render_frame_fbo {
+            unsafe { f(self.handle, fbo) }
         }
     }
 }

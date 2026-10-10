@@ -239,3 +239,39 @@ fn modulation_moves_param() {
     assert_eq!(px(&d, 100, 50)[0], 0);
     let _ = BTreeMap::<String, Modulation>::new();
 }
+
+/// Milkdrop über projectM (nur wenn libprojectM ≥ 4.2 und Test-Presets vorhanden sind:
+/// PM_PROJECTM_LIB und PM_TEST_PRESETS setzen)
+#[test]
+fn milkdrop_renders() {
+    let (Ok(_), Ok(presets)) = (std::env::var("PM_PROJECTM_LIB"), std::env::var("PM_TEST_PRESETS")) else {
+        eprintln!("projectM nicht konfiguriert – Test übersprungen");
+        return;
+    };
+    let mut e = need_gpu!();
+    e.milkdrop.set_preset_dir(presets.into());
+    // warten, bis die Presets gefunden sind
+    for _ in 0..200 {
+        e.milkdrop.begin_frame();
+        if !e.milkdrop.presets.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(!e.milkdrop.presets.is_empty(), "keine Presets");
+    let preset = e.milkdrop.presets[0].clone();
+    let mut s = create_surface("md".into(), "MD".into(), quad(0.0, 0.0, 1.0, 1.0));
+    s.content = Content::Milkdrop { preset, blend: 0.0, cycle: 0.0, random: false };
+    e.doc.project.layers.push(Layer::Surface(s));
+    let mut lit = 0;
+    for _ in 0..200 {
+        let d = frame(&mut e);
+        lit = d.chunks_exact(4).filter(|p| p[0] as u32 + p[1] as u32 + p[2] as u32 > 20).count();
+        if lit > 500 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(!matches!(e.milkdrop.status, crate::milkdrop::Status::Error(_)), "{:?}", e.milkdrop.status);
+    assert!(lit > 500, "Milkdrop-Bild bleibt dunkel ({lit} Pixel), Status {:?}", e.milkdrop.status);
+}

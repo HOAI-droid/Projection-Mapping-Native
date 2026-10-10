@@ -509,8 +509,6 @@ fn milkdrop_panel(ui: &mut Ui, sh: &mut Shared, s: &Surface) {
     match &md.status {
         Status::Error(e) => {
             ui.colored_label(Color32::from_rgb(0xf8, 0x71, 0x71), format!("⚠ {e}"));
-            ui.label("Einmalig im Terminal installieren, dann die App neu starten:");
-            ui.code("brew install projectm");
         }
         Status::Starting => {
             ui.label(RichText::new("projectM startet …").weak());

@@ -1,0 +1,69 @@
+name: macOS-App
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Werkzeuge
+        run: brew install ffmpeg
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            build/projectm
+            build/projectm-src
+          key: macos-${{ hashFiles('Cargo.lock', 'scripts/build-macos.sh') }}
+          restore-keys: macos-
+
+      - name: App bauen
+        run: ./scripts/build-macos.sh
+
+      - name: Tests (Metal-GPU, ffmpeg, projectM)
+        env:
+          PM_PROJECTM_LIB: ${{ github.workspace }}/build/projectm/lib/libprojectM-4.dylib
+          PM_TEST_PRESETS: ${{ github.workspace }}/build/projectm-src/presets/tests
+        run: cargo test --release -- --nocapture
+
+      - name: Start-Test (App startet und läuft 10 Sekunden)
+        run: |
+          "dist/Projection Mapping.app/Contents/MacOS/projection-mapping" > run.log 2>&1 &
+          PID=$!
+          sleep 10
+          if kill -0 $PID 2>/dev/null; then echo "App läuft"; kill $PID; else echo "App beendet sich:"; cat run.log; exit 1; fi
+          cat run.log | head -50
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ProjectionMapping-macOS
+          path: dist/ProjectionMapping-macOS.zip
+
+      - name: Download-Seite aktualisieren (Release „latest“)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Projection Mapping (aktuelle Version)
+          prerelease: false
+          make_latest: true
+          files: dist/ProjectionMapping-macOS.zip
+          body: |
+            Native macOS-App (Apple Silicon). Herunterladen, entpacken, in „Programme“ ziehen.
+            Beim ersten Start: Rechtsklick → Öffnen (oder siehe README). Für Videos, Kamera und Player: `brew install ffmpeg`.

@@ -105,8 +105,8 @@ pub fn create() -> Result<GlContext, String> {
         if bind_api(0x30A2) == 0 {
             return Err("EGL: OpenGL-API nicht verfügbar".into());
         }
-        // EGL_RENDERABLE_TYPE = EGL_OPENGL_BIT
-        let attribs = [0x3040, 0x8, EGL_NONE];
+        // EGL_RENDERABLE_TYPE = EGL_OPENGL_BIT, EGL_SURFACE_TYPE = egal (ohne Fenster)
+        let attribs = [0x3040, 0x8, 0x3033, 0, EGL_NONE];
         let mut cfg: Ptr = std::ptr::null_mut();
         let mut n = 0;
         if choose_config(dpy, attribs.as_ptr(), &mut cfg, 1, &mut n) == 0 || n == 0 {

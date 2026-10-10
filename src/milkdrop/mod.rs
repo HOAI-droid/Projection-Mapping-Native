@@ -316,10 +316,17 @@ fn worker(rx: Receiver<Cmd>, tx: Sender<Event>, tex_paths: Vec<PathBuf>) {
     let api = match projectm::Api::load() {
         Ok(a) => a,
         Err(e) => {
-            let _ = tx.send(Event::Status(Status::Error(format!("projectM nicht gefunden – im Terminal: brew install projectm ({e})"))));
+            let _ = tx.send(Event::Status(Status::Error(format!("projectM nicht gefunden ({e}). Die fertige App bringt projectM mit; beim Selbstbauen: siehe README."))));
             return;
         }
     };
+    if !api.supports_fbo() {
+        let _ = tx.send(Event::Status(Status::Error(format!(
+            "projectM in {} ist zu alt (ab Version 4.2 nötig). Die fertige App bringt eine passende Version mit.",
+            api.path.display()
+        ))));
+        return;
+    }
     let ctx = match gl::create() {
         Ok(c) => c,
         Err(e) => {
