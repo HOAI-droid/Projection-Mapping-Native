@@ -221,10 +221,6 @@ impl MilkdropPool {
             }
         }
     }
-
-    pub fn available(&self) -> bool {
-        !matches!(self.status, Status::Error(_))
-    }
 }
 
 /// Welches Preset gerade dran ist (beim automatischen Weiterschalten deterministisch aus der Uhr)

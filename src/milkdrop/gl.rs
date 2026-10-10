@@ -44,14 +44,26 @@ pub fn create() -> Result<GlContext, String> {
         let set_current: unsafe extern "C" fn(Obj) -> i32 = *lib.get(b"CGLSetCurrentContext\0").map_err(|e| e.to_string())?;
         let destroy_pix: unsafe extern "C" fn(Obj) -> i32 = *lib.get(b"CGLDestroyPixelFormat\0").map_err(|e| e.to_string())?;
         let destroy_ctx: unsafe extern "C" fn(Obj) -> i32 = *lib.get(b"CGLDestroyContext\0").map_err(|e| e.to_string())?;
-        // kCGLPFAOpenGLProfile = 99 → kCGLOGLPVersion_GL4_Core = 0x4100; ColorSize 8 = 24; AlphaSize 11 = 8;
-        // Accelerated = 73; AllowOfflineRenderers = 96
-        let attribs: [i32; 10] = [99, 0x4100, 8, 24, 11, 8, 73, 96, 0, 0];
+        // kCGLPFAOpenGLProfile = 99 → GL4_Core 0x4100 / GL3_Core 0x3200; ColorSize 8; AlphaSize 11;
+        // Accelerated 73; AllowOfflineRenderers 96. Erst mit Hardware, dann ohne (z. B. in VMs).
+        let candidates: [&[i32]; 4] = [
+            &[99, 0x4100, 8, 24, 11, 8, 73, 96, 0],
+            &[99, 0x3200, 8, 24, 11, 8, 73, 96, 0],
+            &[99, 0x4100, 96, 0],
+            &[99, 0x3200, 0],
+        ];
         let mut pix: Obj = std::ptr::null_mut();
-        let mut n = 0;
-        let err = choose(attribs.as_ptr(), &mut pix, &mut n);
-        if err != 0 || pix.is_null() {
-            return Err(format!("CGLChoosePixelFormat: Fehler {err}"));
+        let mut last = 0;
+        for attribs in candidates {
+            let mut n = 0;
+            last = choose(attribs.as_ptr(), &mut pix, &mut n);
+            if last == 0 && !pix.is_null() {
+                break;
+            }
+            pix = std::ptr::null_mut();
+        }
+        if pix.is_null() {
+            return Err(format!("CGLChoosePixelFormat: Fehler {last}"));
         }
         let mut ctx: Obj = std::ptr::null_mut();
         let err = create_ctx(pix, std::ptr::null_mut(), &mut ctx);

@@ -88,6 +88,7 @@ struct SurfaceUniforms {
 
 /// Zielbild einer Ansicht (Vorschau oder Ausgabe)
 pub struct ViewTarget {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     /// sRGB-Sicht derselben Textur für egui (Werte bleiben unverändert)
@@ -845,6 +846,7 @@ impl Renderer {
     }
 
     /// Ansicht als RGBA-Bild auslesen (für Tests und Bildschirmfotos)
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn read_view(&self, target: &ViewTarget) -> Vec<u8> {
         let (w, h) = (target.width, target.height);
         let row = (w * 4).div_ceil(256) * 256;

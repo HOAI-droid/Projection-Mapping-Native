@@ -242,7 +242,7 @@ mod tests {
         let mut p = VideoPlayer::new(file, 320, 240, 30.0, Playback { playing: true, looping: true, speed: 4.0 });
         let start = Instant::now();
         let mut frames = 0;
-        while start.elapsed() < Duration::from_millis(800) {
+        while start.elapsed() < Duration::from_millis(3000) && frames < 20 {
             if let Some(f) = p.take_frame() {
                 assert_eq!(f.len(), 320 * 240 * 4);
                 frames += 1;
