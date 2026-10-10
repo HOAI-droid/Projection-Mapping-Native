@@ -2,6 +2,8 @@
 // (Live-Vorschau in der Steuerung und Beamer-Ausgabe). Inhalte (Bilder, Videos, Kamera, Milkdrop,
 // Effekte, Masken) liegen als Texturen im gemeinsamen Speicher und werden nur einmal pro Bild erzeugt.
 
+#[cfg(test)]
+mod gpu_tests;
 pub mod masks;
 pub mod testgrid;
 

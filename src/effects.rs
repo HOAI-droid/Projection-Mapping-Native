@@ -239,3 +239,31 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod metal_tests {
+    use super::*;
+
+    fn to_msl(module: &naga::Module) -> Result<String, String> {
+        let info = naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::all())
+            .validate(module)
+            .map_err(|e| format!("{e:?}"))?;
+        let options = naga::back::msl::Options { lang_version: (2, 4), ..Default::default() };
+        naga::back::msl::write_string(module, &info, &options, &naga::back::msl::PipelineOptions::default())
+            .map(|(s, _)| s)
+            .map_err(|e| format!("{e:?}"))
+    }
+
+    /// Alle Shader lassen sich nach Metal (MSL) übersetzen – so wie wgpu es auf dem Mac tut
+    #[test]
+    fn all_shaders_translate_to_metal() {
+        for def in &effects().list {
+            let m = parse_effect(def).unwrap();
+            to_msl(&m).unwrap_or_else(|e| panic!("{}: {e}", def.id));
+        }
+        for src in [include_str!("render/surface.wgsl"), include_str!("render/full.wgsl"), EFFECT_VERT_WGSL] {
+            let m = naga::front::wgsl::parse_str(src).unwrap();
+            to_msl(&m).unwrap();
+        }
+    }
+}
